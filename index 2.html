@@ -62,8 +62,8 @@ footer{padding:30px;text-align:center;color:#8b8fa1;font-size:13px}
     <a href="#features">Features</a>
     <a href="#payments">Payments</a>
     <a href="#contact">Contact</a>
-    <span id="accountStatus"></span>
-    <button class="btn" id="accountButton" onclick="handleAccountButton()">Sign In</button>
+    <span id="accountStatus" aria-live="polite"></span>
+    <button class="btn" id="accountButton" type="button" onclick="handleAccountButton()" disabled>Loading…</button>
   </nav>
 </header>
 <main>
@@ -73,7 +73,7 @@ footer{padding:30px;text-align:center;color:#8b8fa1;font-size:13px}
     <h1>Payments made <span>simple.</span></h1>
     <p>Manage your payment experience with a modern, secure and seamless platform designed for growing businesses.</p>
     <div class="actions">
-      <button class="btn" onclick="showLogin('signup')">Get Started →</button>
+      <button class="btn" type="button" onclick="showLogin('signup')">Get Started →</button>
       <a class="secondary" href="#features" style="text-decoration:none">Explore Features</a>
     </div>
   </div>
@@ -108,31 +108,31 @@ footer{padding:30px;text-align:center;color:#8b8fa1;font-size:13px}
   <div class="features">
     <div class="feature"><h3>bKash</h3><p>Mobile financial services</p></div>
     <div class="feature"><h3>Nagad</h3><p>Digital payment services</p></div>
-    <div class="feature"><h3>Cards & Bank</h3><p>Card and bank payment options</p></div>
+    <div class="feature"><h3>Cards &amp; Bank</h3><p>Card and bank payment options</p></div>
   </div>
 </section>
 <section class="section" id="contact">
   <h2>Ready to get started?</h2>
   <p>Contact us to learn more about Crown payment solutions.</p>
-  <button class="btn" style="margin-top:20px" onclick="showLogin('signup')">Create Account</button>
+  <button class="btn" type="button" style="margin-top:20px" onclick="showLogin('signup')">Create Account</button>
 </section>
 </main>
 <footer>© 2026 Crown. All rights reserved.</footer>
 
-<div id="login" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+<div id="login" role="dialog" aria-modal="true" aria-labelledby="authTitle" aria-hidden="true">
   <div class="loginbox">
-    <button class="close" type="button" onclick="hideLogin()" aria-label="Close">✕</button>
+    <button class="close" id="closeAuth" type="button" onclick="hideLogin()" aria-label="Close">✕</button>
     <h2 id="authTitle">Welcome to Crown</h2>
     <p class="muted" id="authSubtitle">Sign in to your account</p>
     <form id="authForm">
       <div id="nameField" style="display:none">
         <label for="fullName">Full Name</label>
-        <input id="fullName" type="text" placeholder="Your full name" autocomplete="name">
+        <input id="fullName" name="fullName" type="text" placeholder="Your full name" autocomplete="name" minlength="2">
       </div>
       <label for="email">Email Address</label>
-      <input id="email" type="email" placeholder="you@example.com" autocomplete="email" required>
+      <input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required>
       <label for="password">Password</label>
-      <input id="password" type="password" placeholder="Enter your password" autocomplete="current-password" minlength="6" required>
+      <input id="password" name="password" type="password" placeholder="Enter your password" autocomplete="current-password" minlength="6" required>
       <button class="btn" id="authSubmit" type="submit">Sign In</button>
     </form>
     <p id="authMessage" role="status" aria-live="polite"></p>
@@ -144,69 +144,91 @@ footer{padding:30px;text-align:center;color:#8b8fa1;font-size:13px}
 <script>
 const SUPABASE_URL = "https://qesgfmvbfiuqvxzchlfy.supabase.co";
 const SUPABASE_KEY = "sb_publishable_Zo6cuLyp3B48JTlvu5ZZoQ_jOVOqBUb";
-const crownSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
+const authModal = document.getElementById("login");
+const authForm = document.getElementById("authForm");
+const authSubmit = document.getElementById("authSubmit");
+const authSwitch = document.getElementById("authSwitch");
+const authMessage = document.getElementById("authMessage");
+let crownSupabase = null;
 let authMode = "login";
 let currentUser = null;
+let isBusy = false;
+let authStateVersion = 0;
+let previousFocus = null;
 
+function showMessage(message, isError = false) {
+  authMessage.textContent = message;
+  authMessage.style.color = isError ? "#b42318" : "#258b58";
+}
+function setBusy(busy) {
+  isBusy = busy;
+  authSubmit.disabled = busy;
+  authSwitch.disabled = busy;
+  document.getElementById("closeAuth").disabled = busy;
+  document.getElementById("accountButton").disabled = busy;
+}
 function showLogin(mode = "login") {
+  if (!crownSupabase) {
+    showMessage("Authentication is unavailable right now. Please reload and try again.", true);
+    return;
+  }
   setAuthMode(mode);
-  document.getElementById("login").style.display = "flex";
+  previousFocus = document.activeElement;
+  authModal.style.display = "flex";
+  authModal.setAttribute("aria-hidden", "false");
+  document.getElementById("email").focus();
 }
 function hideLogin() {
-  document.getElementById("login").style.display = "none";
+  if (isBusy) return;
+  authModal.style.display = "none";
+  authModal.setAttribute("aria-hidden", "true");
+  if (previousFocus && typeof previousFocus.focus === "function") previousFocus.focus();
 }
 function setAuthMode(mode) {
-  authMode = mode;
-  const signup = mode === "signup";
+  authMode = mode === "signup" ? "signup" : "login";
+  const signup = authMode === "signup";
   document.getElementById("authTitle").textContent = signup ? "Create your Crown account" : "Welcome to Crown";
   document.getElementById("authSubtitle").textContent = signup ? "Sign up to get started" : "Sign in to your account";
   document.getElementById("nameField").style.display = signup ? "block" : "none";
   document.getElementById("fullName").required = signup;
   document.getElementById("password").autocomplete = signup ? "new-password" : "current-password";
-  document.getElementById("authSubmit").textContent = signup ? "Create Account" : "Sign In";
-  document.getElementById("authSwitch").textContent = signup ? "Already have an account? Sign in" : "Create an account";
-  document.getElementById("authMessage").textContent = "";
+  authSubmit.textContent = signup ? "Create Account" : "Sign In";
+  authSwitch.textContent = signup ? "Already have an account? Sign in" : "Create an account";
+  authForm.reset();
+  showMessage("");
 }
 function toggleAuthMode() {
-  setAuthMode(authMode === "login" ? "signup" : "login");
+  if (!isBusy) setAuthMode(authMode === "login" ? "signup" : "login");
 }
-function handleAccountButton() {
+async function handleAccountButton() {
+  if (isBusy) return;
   if (currentUser) {
-    signOut();
+    await signOut();
   } else {
     showLogin("login");
   }
-}
-function showMessage(message, isError = false) {
-  const el = document.getElementById("authMessage");
-  el.textContent = message;
-  el.style.color = isError ? "#b42318" : "#258b58";
 }
 function updateAccountUI(user) {
   currentUser = user;
   const button = document.getElementById("accountButton");
   const status = document.getElementById("accountStatus");
-  if (user) {
-    status.textContent = user.email || "Signed in";
-    button.textContent = "Sign Out";
-  } else {
-    status.textContent = "";
-    button.textContent = "Sign In";
-  }
+  button.textContent = user ? "Sign Out" : "Sign In";
+  status.textContent = user ? (user.email || "Signed in") : "";
+  button.disabled = false;
 }
-document.getElementById("authForm").addEventListener("submit", async function(event) {
+authForm.addEventListener("submit", async function(event) {
   event.preventDefault();
-  const submit = document.getElementById("authSubmit");
+  if (!crownSupabase || isBusy) return;
+
+  const submittedMode = authMode;
   const email = document.getElementById("email").value.trim();
   const password = document.getElementById("password").value;
   const fullName = document.getElementById("fullName").value.trim();
-
-  submit.disabled = true;
-  showMessage(authMode === "signup" ? "Creating your account..." : "Signing in...");
+  setBusy(true);
+  showMessage(submittedMode === "signup" ? "Creating your account…" : "Signing in…");
 
   try {
-    if (authMode === "signup") {
+    if (submittedMode === "signup") {
       const { data, error } = await crownSupabase.auth.signUp({
         email,
         password,
@@ -216,43 +238,69 @@ document.getElementById("authForm").addEventListener("submit", async function(ev
         }
       });
       if (error) throw error;
-      if (data.session) {
+      if (data.session && data.user) {
         showMessage("Account created successfully. You are now signed in.");
-        updateAccountUI(data.user);
-        setTimeout(hideLogin, 900);
+        window.setTimeout(hideLogin, 900);
       } else {
-        showMessage("Account created. Please check your email and confirm your address before signing in.");
+        showMessage("Account created. Check your email and confirm your address before signing in.");
       }
     } else {
-      const { data, error } = await crownSupabase.auth.signInWithPassword({ email, password });
+      const { error } = await crownSupabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       showMessage("Signed in successfully.");
-      updateAccountUI(data.user);
-      setTimeout(hideLogin, 700);
+      window.setTimeout(hideLogin, 700);
     }
   } catch (error) {
-    showMessage(error.message || "Something went wrong. Please try again.", true);
+    showMessage(error && error.message ? error.message : "Something went wrong. Please try again.", true);
   } finally {
-    submit.disabled = false;
+    setBusy(false);
   }
 });
 async function signOut() {
-  const { error } = await crownSupabase.auth.signOut();
-  if (error) {
-    alert(error.message);
-    return;
+  if (!crownSupabase || isBusy) return;
+  setBusy(true);
+  try {
+    const { error } = await crownSupabase.auth.signOut();
+    if (error) throw error;
+    showMessage("You have been signed out.");
+  } catch (error) {
+    showLogin("login");
+    showMessage(error && error.message ? error.message : "Could not sign out. Please try again.", true);
+  } finally {
+    setBusy(false);
   }
-  updateAccountUI(null);
 }
-crownSupabase.auth.getSession().then(({ data, error }) => {
-  if (!error) updateAccountUI(data.session ? data.session.user : null);
+document.addEventListener("keydown", function(event) {
+  if (event.key === "Escape" && authModal.getAttribute("aria-hidden") === "false") hideLogin();
 });
-crownSupabase.auth.onAuthStateChange((_event, session) => {
-  updateAccountUI(session ? session.user : null);
+authModal.addEventListener("click", function(event) {
+  if (event.target === authModal) hideLogin();
 });
-document.getElementById("login").addEventListener("click", function(event) {
-  if (event.target === this) hideLogin();
-});
+
+try {
+  if (!window.supabase || typeof window.supabase.createClient !== "function") {
+    throw new Error("Supabase client library did not load.");
+  }
+  crownSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  crownSupabase.auth.onAuthStateChange((_event, session) => {
+    authStateVersion += 1;
+    updateAccountUI(session ? session.user : null);
+  });
+  const initialAuthStateVersion = authStateVersion;
+  crownSupabase.auth.getSession().then(({ data, error }) => {
+    if (error) throw error;
+    if (authStateVersion === initialAuthStateVersion) {
+      updateAccountUI(data.session ? data.session.user : null);
+    }
+  }).catch((error) => {
+    console.error("Could not restore the Crown auth session:", error);
+    updateAccountUI(null);
+  });
+} catch (error) {
+  console.error("Could not initialize Crown authentication:", error);
+  document.getElementById("accountButton").disabled = true;
+  showMessage("Authentication could not be initialized. Check the Supabase project settings and reload.", true);
+}
 </script>
 </body>
 </html>
